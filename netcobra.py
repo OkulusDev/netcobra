@@ -19,6 +19,8 @@ import subprocess
 import sys
 import textwrap
 import threading
+import ipwhois
+import whois
 
 
 def execute(cmd: str) -> str:
@@ -37,7 +39,7 @@ def execute(cmd: str) -> str:
 
 	output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)    # Чтение и возрват (1)
 	
-	return str(output.decode())
+	return str(output.decode()).replace('\n', '')
 
 
 class NetCobra:
@@ -102,7 +104,7 @@ class NetCobra:
 				self.socket.send(buffer.encode())			# Отправляем информацию с ее энкодированием
 		except KeyboardInterrupt:
 			# Нажат Ctrl+C, клавиатурное прерывание
-			print('[!] Операция была прервана')
+			print('[Abort] Сервер прервал свою работу клавиатурным прерыванием')
 			self.socket.close()
 			sys.exit()
 
@@ -113,26 +115,39 @@ class NetCobra:
 			print(f'[!] Операция была прервана с ошибкой: {oserr}')
 			self.socket.close()
 			sys.exit()
+		else:
+			print(f'[/] Слушаем подключение к {self.args.target}:{self.args.port}')
 
 		self.socket.listen(5)
 		print('[+] Слушаем подключения...')
 
-		while True:
-			client_socket, _ = self.socket.accept()
-			client_thread = threading.Thread(target=self.handle, args=(client_socket,))
-			client_thread.start()
+		try:
+			while True:
+				client_socket, addr = self.socket.accept()
+				print(f'[{addr}] присоединился')
+				client_thread = threading.Thread(target=self.handle, args=(client_socket,))
+				client_thread.start()
+		except KeyboardInterrupt:
+			print('[Abort] Сервер прервал свою работу клавиатурным прерыванием')
+			self.socket.close()
+			sys.exit()
+
 
 	def handle(self, client_socket):
+		data = client_socket.recv(4096).decode('utf-8')
+		print(data)
 		if self.args.execute:
 			output = execute(self.args.execute)				# Обращаемся к командной строке
 			client_socket.send(output.encode())
+			print(f'[exec] {output}')
 		elif self.args.upload:
 			file_buffer = b''								# Задаем буфер обмена
 			
 			while True:
 				data = client_socket.recv(4096)				# Размер буфера в битах
 				if data:
-					file_buffer += data						# Помещаем файл в наш запрос
+					print(f'[Данные] {data}')
+					file_buffer += f'{data}\n'				# Помещаем файл в наш запрос
 				else:
 					break
 			
@@ -142,6 +157,8 @@ class NetCobra:
 			
 			message = f'Файл сохранен в {self.args.upload}'	# Выгружаем и отправляем на сервер
 			client_socket.send(message.encode())
+			self.socket.close()
+			sys.exit()
 		elif self.args.command:
 			cmd_buffer = b''								# Снова задаем буфер
 			while True:
@@ -161,6 +178,24 @@ class NetCobra:
 					print(f'[!] Сервер был отключен: {e}')
 					self.socket.close()
 					sys.exit()
+		else:
+			while True:
+				data = client_socket.recv(4096).decode('utf-8')
+				if data:
+					print(f'[Данные] {data}')
+				else:
+					break
+
+
+def ipwhois_info(ip):
+	results = ipwhois.IPWhois(ip).lookup_whois()
+	print(results)
+	print("\n\n")
+
+
+def whois_info(ip):
+	results = whois.whois(ip)
+	print(results)
 
 
 def main():
@@ -180,8 +215,11 @@ netcobra.py -t 127.0.0.1 -p 4444 -l -e=\"cat /etc/passwd\"
 // Шлем текст на порт сервера 1234
 echo 'ABC' | ./netcobra.py -t 127.0.0.1 -p 1234
 
-// соединяемся с сервером
+// Соединяемся с сервером
 netcobra.py -t 127.0.0.1 -p 4444
+
+// Узнаем информацию о домене по IP адресу
+netcobra.py -t 127.0.0.1 -w
 	'''))
 
 	parser.add_argument('-c', '--command', action='store_true',
@@ -193,16 +231,22 @@ netcobra.py -t 127.0.0.1 -p 4444
 	parser.add_argument('-t', '--target', default='192.168.1.203',
 						help='специфичный IP адрес')
 	parser.add_argument('-u', '--upload', help='загрузка файла')
+	parser.add_argument('-w', '--whois', help='информация о домене по IP адресу', action='store_true')
 	args = parser.parse_args()
 
-	if args.listen:
-		buffer = ''
-	else:
-		buffer = sys.stdin.read()
-
 	if args:
-		nc = NetCobra(args, buffer.encode())
-		nc.run()
+		if args.whois:
+			ipwhois_info(args.target)
+			whois_info(args.target)
+		else:
+			if args.listen:
+				buffer = ''
+			else:
+				print('> ')
+				buffer = sys.stdin.read()
+			
+			nc = NetCobra(args, buffer.encode())
+			nc.run()
 
 
 if __name__ == '__main__':
