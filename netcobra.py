@@ -16,99 +16,13 @@ import argparse
 import socket
 import shlex
 import subprocess
-import time
 import sys
 import textwrap
 import threading
-import re
-import ssl
-from datetime import datetime
-from ipaddress import IPv4Address, AddressValueError, ip_network, ip_address
-import dns
-from dns import resolver
-from requests import get, exceptions
-import ipwhois
-import whois
 
-
-def ip_in_range(ip, addr):
-	if ip_address(ip) in ip_network(addr):
-		return True
-	return False
-
-
-def cloudfare_detect(ip):
-	list_addr = ["104.16.0.0/12"]
-
-	url = 'https://www.cloudflare.com/ips-v4'
-	req = get(url=url)
-
-	for adr in req.text.split("\n"):
-		list_addr.append(adr)
-
-	for addr in list_addr:
-		detect = ip_in_range(ip, addr)
-		if detect:
-			return True
-	return False
-
-
-def public_ip():
-	try:
-		return get('https://api.ipify.org/').text
-	except exceptions.ConnectionError:
-		return '127.0.0.1'
-
-
-def dns_bl_check(ip):
-	print('\n- Проверка черных списков\n')
-	bad_dict = dict()
-	req = get('https://raw.githubusercontent.com/evgenycc/DNSBL-list/main/DNSBL')
-	read = req.text.splitlines()
-	
-	for serv in read:
-		req = f"{'.'.join(reversed(ip.split('.')))}.{serv.strip()}"
-		try:
-			resolv = dns.resolver.Resolver()
-			resolv.timeout = 5
-			resolv.lifetime = 5
-			resp = resolv.resolve(req, 'A')
-			resp_txt = resolv.resolve(req, 'TXT')
-			print(f'{serv.strip():30}: [BAD]')
-			pattern = '(?:https?:\/\/)?(?:[\w\.]+)\.(?:[a-z]{2,6}\.?)(?:\/[\w\.]*)*\/?'
-			find = re.findall(pattern, str(resp_txt[0]))
-			if len(find) == 0:
-				find = ['No address']
-			bad_dict.update({serv.strip(): f'{resp[0]} {find[0]}'})
-		except dns.resolver.NXDOMAIN:
-			print(f'{serv.strip():30}: [OK]')
-		except (dns.resolver.LifetimeTimeout, dns.resolver.NoAnswer):
-			continue
-	if len(bad_dict) > 0:
-		len_str = len(f'IP-АДРЕС: "{ip.upper()}" ОБНАРУЖЕН В ЧЕРНЫХ СПИСКАХ')
-		print(f'\nIP-АДРЕС: {ip.upper()} ОБНАРУЖЕН В ЧЕРНЫХ СПИСКАХ\n{"*"*len_str}')
-		for bad in bad_dict:
-			print(f' - {bad:30} : {bad_dict[bad]}')
-	else:
-		print('\n[+] IP-адрес в черных списках не обнаружен')
-
-
-def check_ip_in_black_list(addr_input):
-	print(f'\n- Ваш внешний IP-адрес: {public_ip()}')
-	#addr_input = input('- Введите IP-адрес или домен для проверки\n  Для выхода введите "x"\n  >>> ')
-	if addr_input.lower() == "x":
-		exit(0)
-	ip = ''
-	try:
-		ip = socket.gethostbyname(addr_input)
-	except socket.gaierror:
-		print('\n - Не удалось получить IP-адрес')
-		exit(0)
-
-	if cloudfare_detect(ip):
-		print(f'\n[!] ВНИМАНИЕ! Обнаружен адрес Cloudflare: {ip}')
-	
-	dns_bl_check(ip)
+from modules.tlsconnection import TLSClient, TLSServer
+from modules.dns_bl_scan import *
+from modules.whois_information import *
 
 
 def execute(cmd: str) -> str:
@@ -275,164 +189,6 @@ class NetCobra:
 					break
 
 
-def ipwhois_info(ip):
-	results = ipwhois.IPWhois(ip).lookup_whois()
-	print(results)
-	print("\n")
-
-
-def whois_info(ip):
-	results = whois.whois(ip)
-	print(results)
-
-
-def ianna(ip):
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	s.connect(("whois.iana.org", 43))
-	s.send((ip + "\r\n").encode())
-	response = b""
-	while True:
-		data = s.recv(4096)
-		response += data
-		if not data:
-			break
-	s.close()
-	whois = ''
-	for resp in response.decode().splitlines():
-		if resp.startswith('%') or not resp.strip():
-			continue
-		elif resp.startswith('whois'):
-			whois = resp.split(":")[1].strip()
-			break
-	return whois if whois else False
-
-
-def get_whois(ip, whois):
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	s.connect((whois, 43))
-	s.send((ip + "\r\n").encode())
-	response = b""
-	while True:
-		data = s.recv(4096)
-		response += data
-		if not data:
-			break
-	s.close()
-	whois_ip = dict()
-	num = 0
-	for ln in response.decode().splitlines():
-		if ln.strip().startswith("%") or not ln.strip():
-			continue
-		else:
-			if ln.strip().split(": ")[0].strip() in ['created', 'last-modified']:
-				dt = datetime.fromisoformat(ln.strip().split(": ")[1].strip()).strftime("%Y-%m-%d %H:%M:%S")
-				whois_ip.update({f'{ln.strip().split(": ")[0].strip()}_{num}': dt})
-				num += 1
-			else:
-				whois_ip.update({ln.strip().split(": ")[0].strip(): ln.strip().split(": ")[1].strip()})
-	return whois_ip if whois_ip else False
-
-
-def validate_request(ip):
-	"""Проверка IP
-
-	 + ip - IP адрес"""
-	try:
-		IPv4Address(ip)
-		if whois := ianna(ip):
-			time.sleep(1)
-			if info := get_whois(ip, whois):
-				print(info)
-			else:
-				print("Не была получена информация")
-		else:
-			if info := get_whois(ip, 'whois.ripe.net'):
-				print(info)
-			else:
-				print("Не была получена информация")
-	except AddressValueError:
-		print("IP адрес не валидный")
-	except ConnectionResetError as ex:
-		print(ex)
-
-
-class TLSServer:
-	"""TLS сервер"""
-	def __init__(self, hostname: str, port: int, server_key: str, client_cert: str, server_cert: str):
-		"""Инициализация сервера
-
-		 + hostname: str - имя хоста
-		 + port: int - порт
-		 + server_key: str - путь до файла с ключом сервера
-		 + client_cert: str - путь до файла с сертификатом клиента
-		 + server_cert: str - путь до файла с сертификатом сервера"""
-		self.hostname = hostname
-		self.server_cert = server_cert
-		self.server_key = server_key
-		self.client_cert = client_cert
-		self.port = port
-
-	def create_ssl_context(self):
-		"""Создание SSL контекста"""
-		context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-		context.verify_mode = ssl.CERT_REQUIRED
-		context.verify_mode = ssl.CERT_REQUIRED
-		context.load_cert_chain(certfile=self.server_cert, keyfile=self.server_key)
-		context.options |= ssl.OP_SINGLE_ECDH_USE
-		context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
-
-	def run(self):
-		"""Запуск TLS сервера
-		В данной функции реализовано простейшая функция получения сообщения"""
-		with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as sock:
-			sock.bind(('', port))
-			sock.listen(1)
-			
-			with context.wrap_socket(sock, server_side=True) as socks:
-				conn, addr = socks.accept()
-				print(f'[{addr}] Connected')
-				message = conn.recv(1024).decode()
-				capitalizedMessage = message.upper()
-				conn.send(capitalizedMessage.encode())
-
-
-class TLSClient:
-	"""TLS клиент"""
-	def __init__(self, hostname: str, port: int, client_key: str, client_cert: str, server_cert: str):
-		"""Инициализация:
-
-		 + hostname: str - имя хоста
-		 + port: int - порт
-		 + client_key: str - путь до файла с ключом клиента
-		 + client_cert: str - путь до файла с сертификатом клиента
-		 + server_cert: str - путь до файла с сертификатом сервера"""
-		self.hostname = hostname
-		self.port = port
-		self.client_key = client_key
-		self.client_cert = client_cert
-		self.server_cert = server_cert
-
-	def create_ssl_context(self):
-		"""Создание SSL контекста"""
-		context = ssl.SSLContext(ssl.PROTOCOL_TLS, cafile=server_cert)
-		context.load_cert_chain(certfile=client_cert, keyfile=client_key)
-		context.load_verify_locations(cafile=server_cert)
-		context.verify_mode = ssl.CERT_REQUIRED
-		context.options |= ssl.OP_SINGLE_ECDH_USE
-		context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
-
-	def run(self):
-		"""Запуск TLS клиента
-		В данной функции реализовано простейшая функция отправки сообщения"""
-		with socket.create_connection((hostname, port)) as sock:
-			with context.wrap_socket(sock, server_side=False, server_hostname=hostname) as socks:
-				print(socks.version())
-				message = input("Введите ваше сообщение > ")
-				socks.send(message.encode())
-				receives = socks.recv(1024)
-				print(receives)
-
-
 def main():
 	"""Главная функция. Запускается при прямом выполнении"""
 	client_key = 'client.key'
@@ -495,12 +251,12 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 			validate_request(args.target)
 		elif args.blacklist:
 			check_ip_in_black_list(args.target)
-		elif args.ts:
+		elif args.tls_server:
 			tls_serv = TLSServer(args.target, args.port, server_key, client_cert, server_cert)
 			tls_serv.create_ssl_context()
 			print(f'[{args.target}:{args.port}] Запуск TLS соединения (серверная часть)')
 			tls.run()
-		elif args.tc:
+		elif args.tls_client:
 			tls_client = TLSClient(args.target, args.port, client_key, client_cert, server_cert)
 			tls_client.create_ssl_context()
 			print(f'[{args.target}:{args.port}] Подключение TLS соединения (клиентская часть)')
