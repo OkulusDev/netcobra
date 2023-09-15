@@ -278,7 +278,7 @@ class NetCobra:
 def ipwhois_info(ip):
 	results = ipwhois.IPWhois(ip).lookup_whois()
 	print(results)
-	print("\n\n")
+	print("\n")
 
 
 def whois_info(ip):
@@ -465,7 +465,7 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 		if args.whois:
 			ipwhois_info(args.target)
 			whois_info(args.target)
-			print('\n\n')
+			print('\n')
 			validate_request(args.target)
 		elif args.blacklist:
 			check_ip_in_black_list(args.target)
@@ -480,6 +480,7 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 			print(f'[{args.target}:{args.port}] Подключение TLS соединения (клиентская часть)')
 			tls_client.run()
 		else:
+			print(f'[/] Попытка соединения с сервером...')
 			if args.listen:
 				buffer = ''
 			else:
