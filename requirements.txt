@@ -1,0 +1,7 @@
+cffi==1.15.1
+cryptography==41.0.3
+customtkinter==5.2.0
+darkdetect==0.8.0
+pyAesCrypt==6.1.0
+pycparser==2.21
+pyperclip==1.8.2
