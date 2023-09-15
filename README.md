@@ -33,6 +33,14 @@ pip3 install -r requirements.txt
 
 ```netcobra.py -t 127.0.0.1 -p 4444```
 
+ + Узнаем информацию о домене по IP адресу
+
+```netcobra.py -t 127.0.0.1 -w```
+
+ + Узнаем, есть ли IP в черных списках DNS
+
+```netcobra.py -t 127.0.0.1 -b```
+
  + Справка
 
 ```netcobra.py --help```
