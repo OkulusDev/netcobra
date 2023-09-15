@@ -16,9 +16,12 @@ import argparse
 import socket
 import shlex
 import subprocess
+import time
 import sys
 import textwrap
 import threading
+from datetime import datetime
+from ipaddress import IPv4Address, AddressValueError
 import ipwhois
 import whois
 
@@ -198,6 +201,73 @@ def whois_info(ip):
 	print(results)
 
 
+def ianna(ip):
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.connect(("whois.iana.org", 43))
+	s.send((ip + "\r\n").encode())
+	response = b""
+	while True:
+		data = s.recv(4096)
+		response += data
+		if not data:
+			break
+	s.close()
+	whois = ''
+	for resp in response.decode().splitlines():
+		if resp.startswith('%') or not resp.strip():
+			continue
+		elif resp.startswith('whois'):
+			whois = resp.split(":")[1].strip()
+			break
+	return whois if whois else False
+
+
+def get_whois(ip, whois):
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.connect((whois, 43))
+	s.send((ip + "\r\n").encode())
+	response = b""
+	while True:
+		data = s.recv(4096)
+		response += data
+		if not data:
+			break
+	s.close()
+	whois_ip = dict()
+	num = 0
+	for ln in response.decode().splitlines():
+		if ln.strip().startswith("%") or not ln.strip():
+			continue
+		else:
+			if ln.strip().split(": ")[0].strip() in ['created', 'last-modified']:
+				dt = datetime.fromisoformat(ln.strip().split(": ")[1].strip()).strftime("%Y-%m-%d %H:%M:%S")
+				whois_ip.update({f'{ln.strip().split(": ")[0].strip()}_{num}': dt})
+				num += 1
+			else:
+				whois_ip.update({ln.strip().split(": ")[0].strip(): ln.strip().split(": ")[1].strip()})
+	return whois_ip if whois_ip else False
+
+
+def validate_request(ip):
+	try:
+		IPv4Address(ip)
+		if whois := ianna(ip):
+			time.sleep(1)
+			if info := get_whois(ip, whois):
+				print(info)
+			else:
+				print("Не была получена информация")
+		else:
+			if info := get_whois(ip, 'whois.ripe.net'):
+				print(info)
+			else:
+				print("Не была получена информация")
+	except AddressValueError:
+		print("IP адрес не валидный")
+	except ConnectionResetError as ex:
+		print(ex)
+
+
 def main():
 	parser = argparse.ArgumentParser(description='NetCobra', formatter_class=argparse.RawDescriptionHelpFormatter, 
 								epilog=textwrap.dedent('''
@@ -238,6 +308,8 @@ netcobra.py -t 127.0.0.1 -w
 		if args.whois:
 			ipwhois_info(args.target)
 			whois_info(args.target)
+			print('\n\n')
+			validate_request(args.target)
 		else:
 			if args.listen:
 				buffer = ''
