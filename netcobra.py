@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding:utf -*-
-"""netcobra - альтернатива утилиты NetCat на python3
+"""Сетевая кобра - это программа для сканирования сетей, IP, работой с сетью и серверами
 Copyright (C) 2023  Okulus Dev
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ import sys
 import textwrap
 import threading
 import re
+import ssl
 from datetime import datetime
 from ipaddress import IPv4Address, AddressValueError, ip_network, ip_address
 import dns
@@ -352,31 +353,97 @@ def validate_request(ip):
 		print(ex)
 
 
+class TLSServer:
+	def __init__(self, hostname: str, port: int, server_key: str, client_cert: str, server_cert: str):
+		self.hostname = hostname
+		self.server_cert = server_cert
+		self.server_key = server_key
+		self.client_cert = client_cert
+		self.port = port
+
+	def create_ssl_context(self):
+		context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+		context.verify_mode = ssl.CERT_REQUIRED
+		context.verify_mode = ssl.CERT_REQUIRED
+		context.load_cert_chain(certfile=self.server_cert, keyfile=self.server_key)
+		context.options |= ssl.OP_SINGLE_ECDH_USE
+		context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
+
+	def run(self):
+		with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as sock:
+			sock.bind(('', port))
+			sock.listen(1)
+			
+			with context.wrap_socket(sock, server_side=True) as socks:
+				conn, addr = socks.accept()
+				print(f'[{addr}] Connected')
+				message = conn.recv(1024).decode()
+				capitalizedMessage = message.upper()
+				conn.send(capitalizedMessage.encode())
+
+
+class TLSClient:
+	def __init__(self, hostname, port, client_key, client_cert, server_cert):
+		self.hostname = hostname
+		self.port = port
+		self.client_key = client_key
+		self.client_cert = client_cert
+		self.server_cert = server_cert
+
+	def create_ssl_context(self):
+		context = ssl.SSLContext(ssl.PROTOCOL_TLS, cafile=server_cert)
+		context.load_cert_chain(certfile=client_cert, keyfile=client_key)
+		context.load_verify_locations(cafile=server_cert)
+		context.verify_mode = ssl.CERT_REQUIRED
+		context.options |= ssl.OP_SINGLE_ECDH_USE
+		context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 | ssl.OP_NO_TLSv1_2
+
+	def run(self):
+		with socket.create_connection((hostname, port)) as sock:
+			with context.wrap_socket(sock, server_side=False, server_hostname=hostname) as socks:
+				print(socks.version())
+				message = input("Введите ваше сообщение > ")
+				socks.send(message.encode())
+				receives = socks.recv(1024)
+				print(receives)
+
+
 def main():
+	client_key = 'client.key'
+	client_cert = 'client.crt'
+	server_cert = 'server.crt'
+	server_key = 'server.key'
+	
 	parser = argparse.ArgumentParser(description='NetCobra', formatter_class=argparse.RawDescriptionHelpFormatter, 
 								epilog=textwrap.dedent('''
 Примеры использования:
 
 // Командная оболочка
-netcobra.py -t 127.0.0.1 -p 4444 -l -c
+netcobra -t 127.0.0.1 -p 4444 -l -c
 
 // Загружаем в файл
-netcobra.py -t 127.0.0.1 -p 4444 -l -u=mytest.txt
+netcobra -t 127.0.0.1 -p 4444 -l -u=mytest.txt
 
 // Выполняем команду
-netcobra.py -t 127.0.0.1 -p 4444 -l -e=\"cat /etc/passwd\"
+netcobra -t 127.0.0.1 -p 4444 -l -e=\"cat /etc/passwd\"
 
 // Шлем текст на порт сервера 1234
-echo 'ABC' | ./netcobra.py -t 127.0.0.1 -p 1234
+echo 'ABC' | ./netcobra -t 127.0.0.1 -p 1234
 
 // Соединяемся с сервером
-netcobra.py -t 127.0.0.1 -p 4444
+netcobra -t 127.0.0.1 -p 4444
 
 // Узнаем информацию о домене по IP адресу
-netcobra.py -t 127.0.0.1 -w
+netcobra -t 127.0.0.1 -w
 
 // Узнаем, есть ли IP в черных списках DNS
-netcobra.py -t 127.0.0.1 -b
+netcobra -t 127.0.0.1 -b
+
+// Запуск TLS-соединения (сервер)
+netcobra -t 127.0.0.1 -p 4444 -ts
+
+// Запуск TLS-соединения (клиент)
+netcobra -t 127.0.0.1 -p 4444 -tc
 	'''))
 
 	parser.add_argument('-c', '--command', action='store_true',
@@ -390,6 +457,8 @@ netcobra.py -t 127.0.0.1 -b
 	parser.add_argument('-u', '--upload', help='загрузка файла')
 	parser.add_argument('-w', '--whois', help='информация о домене по IP адресу', action='store_true')
 	parser.add_argument('-b', '--blacklist', help='проверить IP в черных списках DNS', action='store_true')
+	parser.add_argument('-ts', '--tls-server', help='запуск tls-сервера', action='store_true')
+	parser.add_argument('-tc', '--tls-client', help='запуск tls-клиента', action='store_true')
 	args = parser.parse_args()
 
 	if args:
@@ -400,11 +469,21 @@ netcobra.py -t 127.0.0.1 -b
 			validate_request(args.target)
 		elif args.blacklist:
 			check_ip_in_black_list(args.target)
+		elif args.ts:
+			tls_serv = TLSServer(args.target, args.port, server_key, client_cert, server_cert)
+			tls_serv.create_ssl_context()
+			print(f'[{args.target}:{args.port}] Запуск TLS соединения (серверная часть)')
+			tls.run()
+		elif args.tc:
+			tls_client = TLSClient(args.target, args.port, client_key, client_cert, server_cert)
+			tls_client.create_ssl_context()
+			print(f'[{args.target}:{args.port}] Подключение TLS соединения (клиентская часть)')
+			tls_client.run()
 		else:
 			if args.listen:
 				buffer = ''
 			else:
-				print('> ')
+				print('Введите сообщение для буфера:')
 				buffer = sys.stdin.read()
 			
 			nc = NetCobra(args, buffer.encode())
