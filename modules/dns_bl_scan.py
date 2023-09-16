@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+# -*- coding:utf-8 -*-
 import socket
 from ipaddress import ip_network, ip_address
 import dns

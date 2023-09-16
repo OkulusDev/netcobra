@@ -20,6 +20,7 @@ import sys
 import textwrap
 import threading
 
+# Модули
 from modules.tlsconnection import TLSClient, TLSServer
 from modules.dns_bl_scan import *
 from modules.whois_information import *
@@ -138,6 +139,7 @@ class NetCobra:
 	def handle(self, client_socket):
 		data = client_socket.recv(4096).decode('utf-8')
 		print(data)
+
 		if self.args.execute:
 			output = execute(self.args.execute)				# Обращаемся к командной строке
 			client_socket.send(output.encode())
