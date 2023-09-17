@@ -8,51 +8,68 @@ import ipwhois
 import whois
 
 
-def ipwhois_info(ip):
+def ipwhois_info(ip: str):
+	"""Информация о IP по IPWhois
+
+	 + ip: str - IP адрес"""
 	results = ipwhois.IPWhois(ip).lookup_whois()
 	print(results)
 	print("\n")
 
 
 def whois_info(ip):
+	"""Информация о IP по WhoIs
+
+	 + ip: str - IP адрес"""
 	results = whois.whois(ip)
 	print(results)
 
 
 def ianna(ip):
+	"""Информация о IP через whois.iana.org
+
+	 + ip: str - IP адрес"""
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	s.connect(("whois.iana.org", 43))
 	s.send((ip + "\r\n").encode())
 	response = b""
+	
 	while True:
 		data = s.recv(4096)
 		response += data
 		if not data:
 			break
+	
 	s.close()
 	whois = ''
+	
 	for resp in response.decode().splitlines():
 		if resp.startswith('%') or not resp.strip():
 			continue
 		elif resp.startswith('whois'):
 			whois = resp.split(":")[1].strip()
 			break
+	
 	return whois if whois else False
 
 
 def get_whois(ip, whois):
+	"""Получения информации о IP"""
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	s.connect((whois, 43))
 	s.send((ip + "\r\n").encode())
 	response = b""
+	
 	while True:
 		data = s.recv(4096)
 		response += data
 		if not data:
 			break
+	
 	s.close()
 	whois_ip = dict()
 	num = 0
+	
 	for ln in response.decode().splitlines():
 		if ln.strip().startswith("%") or not ln.strip():
 			continue
@@ -63,6 +80,7 @@ def get_whois(ip, whois):
 				num += 1
 			else:
 				whois_ip.update({ln.strip().split(": ")[0].strip(): ln.strip().split(": ")[1].strip()})
+	
 	return whois_ip if whois_ip else False
 
 

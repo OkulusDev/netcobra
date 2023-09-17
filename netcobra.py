@@ -51,7 +51,7 @@ class NetCobra:
 		"""Инициализация класса NetCobra
 
 		 + args - аргументы
-		 + buffer - буфер"""
+		 + buffer=None - буфер"""
 		self.args = args 					# Наши будующие аргументы
 		self.buffer = buffer    			# Буфер с данными
 		
@@ -112,6 +112,7 @@ class NetCobra:
 			sys.exit()
 
 	def listen(self):
+		"""Слушаем подключения"""
 		try:
 			self.socket.bind((self.args.target, self.args.port))
 		except OSError as oserr:
@@ -137,6 +138,7 @@ class NetCobra:
 
 
 	def handle(self, client_socket):
+		"""Обработчик"""
 		data = client_socket.recv(4096).decode('utf-8')
 		print(data)
 
@@ -150,7 +152,7 @@ class NetCobra:
 			while True:
 				data = client_socket.recv(4096)				# Размер буфера в битах
 				if data:
-					print(f'[Данные] {data}')
+			3		print(f'[Данные] {data}')
 					file_buffer += f'{data}\n'				# Помещаем файл в наш запрос
 				else:
 					break
@@ -192,7 +194,8 @@ class NetCobra:
 
 
 def main():
-	"""Главная функция. Запускается при прямом выполнении"""
+	"""Главная функция. Запускается при прямом выполнении
+	Здесь создаются переменные или константы, парсер аргументов и запускаются функции"""
 	client_key = 'client.key'
 	client_cert = 'client.crt'
 	server_cert = 'server.crt'
