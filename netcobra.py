@@ -265,7 +265,7 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 				print(f'[!] Произошла ошибка: {e}')
 			else:
 				for opened_port in result['opened_ports']:
-					print(f'[/] {opened_port}')
+					print(f'[/] Открыт {opened_port}')
 		elif args.blacklist:
 			check_ip_in_black_list(args.target)
 		elif args.tls_server:

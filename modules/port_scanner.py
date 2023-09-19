@@ -1,11 +1,16 @@
 #!/usr/bin/python3
 # -*- coding:utf-8 -*-
 import socket
-from datetime import datetime
+from time import time
+from threading import Thread
 import sys
 
+opened_ports = []
 
-def scan_ports(target_hostname: str) -> dict:
+
+def scan_port(target_hostname: str, port: int):
+	global opened_ports
+
 	ports = {
 		20: "FTP-DATA", 21: "FTP", 22: "SSH", 23: "Telnet",
 		25: "SMTP", 43: "WHOIS", 53: "DNS", 80: "http",
@@ -17,33 +22,33 @@ def scan_ports(target_hostname: str) -> dict:
 		3268: "LDAP", 3306: "MySQL", 3389: "RDP",
 		5432: "PostgreSQL", 5900: "VNC", 8080: "Tomcat", 10000: "Webmin"}
 
+	try:
+		sock = socket.socket()
+		sock.connect((target_hostname, port))
+	except:
+		print(f'[{target_hostname}] {port} закрыт')
+	else:
+		try:
+			opened_ports.append(f'{port}/{ports[port]}')
+		except:
+			opened_ports.append(port)
+
+	return
+
+
+def scan_ports(target_hostname: str) -> dict:
 	ip_addr = socket.gethostbyname(target_hostname)
 
-	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sock.settimeout(1)
+	start = time()
 
-	start = datetime.now()
+	threads: list[Thread] = []
 
-	opened_ports = []
-	port = -1
-
-	while port < 65537:
-		port += 1
-
-		try:
-			sock.connect((ip_addr, port))
-		except:
-			print(f'[{ip_addr}] Порт {port} закрыт')
-		else:
-			try:
-				print(f'[{ip_addr}] Порт {port}/{ports[port]} открыт')
-				opened_ports.append(f'{port}')
-			except KeyError:
-				print(f'[{ip_addr}] Порт {port} открыт')
-				opened_ports.append(port)
-		finally:
-			sock.close()
-
-	ends = datetime.now()
+	port_count = 8000
 	
-	return {'opened_ports': opened_ports, 'time': ends - start}
+	for port in range(1, port_count + 1):
+		threads.insert(0, Thread(target=scan_port, args=(ip_addr, port,)))
+		threads[0].start()
+
+	end = time()
+
+	return {'opened_ports': opened_ports, 'total': f'{end - start}s'}
