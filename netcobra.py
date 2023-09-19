@@ -22,6 +22,7 @@ import threading
 
 # Модули
 from modules.tlsconnection import TLSClient, TLSServer
+from modules.port_scanner import scan_ports
 from modules.dns_bl_scan import *
 from modules.whois_information import *
 
@@ -152,7 +153,7 @@ class NetCobra:
 			while True:
 				data = client_socket.recv(4096)				# Размер буфера в битах
 				if data:
-			3		print(f'[Данные] {data}')
+					print(f'[Данные] {data}')
 					file_buffer += f'{data}\n'				# Помещаем файл в наш запрос
 				else:
 					break
@@ -246,6 +247,7 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 	parser.add_argument('-b', '--blacklist', help='проверить IP в черных списках DNS', action='store_true')
 	parser.add_argument('-ts', '--tls-server', help='запуск tls-сервера', action='store_true')
 	parser.add_argument('-tc', '--tls-client', help='запуск tls-клиента', action='store_true')
+	parser.add_argument('-s', '--scan-ports', help='сканирование портов', action='store_true')
 	args = parser.parse_args()
 
 	if args:
@@ -254,6 +256,16 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 			whois_info(args.target)
 			print('\n')
 			validate_request(args.target)
+		elif args.scan_ports:
+			print(f'[+] Запуск сканер портов на {args.target}\n')
+
+			try:
+				result = scan_ports(args.target)
+			except Exception as e:
+				print(f'[!] Произошла ошибка: {e}')
+			else:
+				for opened_port in result['opened_ports']:
+					print(f'[/] {opened_port}')
 		elif args.blacklist:
 			check_ip_in_black_list(args.target)
 		elif args.tls_server:
