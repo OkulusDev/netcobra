@@ -258,22 +258,26 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 			print('\n')
 			validate_request(args.target)
 		elif args.scan_ports:
-			print(f'[+] Запуск сканер портов на {args.target}\n')
+			print(f'[+] Запуск сканер портов на {args.target}')
 
-			if args.pc.isdigit() and args.pc <= 2 ** 16:
-				ports_count = args.pc
+			if args.ports_count:
+				if args.ports_count.isdigit():
+					if int(args.ports_count) <= 2 ** 16:
+						ports_count = int(args.ports_count)
+					else:
+						ports_count = 8000
+				else:
+					ports_count = 8000
 			else:
 				ports_count = 8000
-			
+
 			print(f'[/] Количество портов для сканирования: {ports_count}')
 
 			try:
-				result = scan_ports(args.target, ports_count)
+				scan_ports(args.target, port_count=ports_count)
 			except Exception as e:
 				print(f'[!] Произошла ошибка: {e}')
-			else:
-				for opened_port in result['opened_ports']:
-					print(f'[/] Открыт {opened_port}')
+				sys.exit()
 		elif args.blacklist:
 			check_ip_in_black_list(args.target)
 		elif args.tls_server:

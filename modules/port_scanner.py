@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 # -*- coding:utf-8 -*-
 import socket
-from time import time
 from threading import Thread
 import sys
 
@@ -24,29 +23,35 @@ def scan_port(target_hostname: str, port: int):
 
 	try:
 		sock = socket.socket()
+		sock.settimeout(1)
 		sock.connect((target_hostname, port))
 	except:
 		print(f'[{target_hostname}] {port} закрыт')
 	else:
+		print(f'[{target_hostname}] {port} открыт')
 		try:
 			opened_ports.append(f'{port}/{ports[port]}')
 		except:
 			opened_ports.append(port)
 
-	return
-
 
 def scan_ports(target_hostname: str, port_count: int=2 ** 16) -> dict:
 	ip_addr = socket.gethostbyname(target_hostname)
 
-	start = time()
-
 	threads: list[Thread] = []
 
-	for port in range(1, port_count + 1):
+	count = 0
+	for port in range(1, port_count):
+		count += 1
 		threads.insert(0, Thread(target=scan_port, args=(ip_addr, port,)))
 		threads[0].start()
 
-	end = time()
+	for thread in threads:
+		thread.join()
 
-	return {'opened_ports': opened_ports, 'total': f'{end - start}s'}
+	print(f'\nОткрытые порты:')
+
+	for opened_port in opened_ports:
+		print(f'[/] Открыт {opened_port}')
+
+	return
