@@ -36,15 +36,13 @@ def scan_port(target_hostname: str, port: int):
 	return
 
 
-def scan_ports(target_hostname: str) -> dict:
+def scan_ports(target_hostname: str, port_count: int=2 ** 16) -> dict:
 	ip_addr = socket.gethostbyname(target_hostname)
 
 	start = time()
 
 	threads: list[Thread] = []
 
-	port_count = 8000
-	
 	for port in range(1, port_count + 1):
 		threads.insert(0, Thread(target=scan_port, args=(ip_addr, port,)))
 		threads[0].start()

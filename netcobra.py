@@ -248,6 +248,7 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 	parser.add_argument('-ts', '--tls-server', help='запуск tls-сервера', action='store_true')
 	parser.add_argument('-tc', '--tls-client', help='запуск tls-клиента', action='store_true')
 	parser.add_argument('-s', '--scan-ports', help='сканирование портов', action='store_true')
+	parser.add_argument('-pc', '--ports-count', help='количество портов для сканирования')
 	args = parser.parse_args()
 
 	if args:
@@ -259,8 +260,15 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 		elif args.scan_ports:
 			print(f'[+] Запуск сканер портов на {args.target}\n')
 
+			if args.pc.isdigit() and args.pc <= 2 ** 16:
+				ports_count = args.pc
+			else:
+				ports_count = 8000
+			
+			print(f'[/] Количество портов для сканирования: {ports_count}')
+
 			try:
-				result = scan_ports(args.target)
+				result = scan_ports(args.target, ports_count)
 			except Exception as e:
 				print(f'[!] Произошла ошибка: {e}')
 			else:
