@@ -23,7 +23,7 @@ import threading
 # Модули
 from modules.tlsconnection import TLSClient, TLSServer
 from modules.port_scanner import scan_ports
-from modules.netlib import check_network
+from modules.netlib import check_network, url_info
 from modules.dns_bl_scan import *
 from modules.whois_information import *
 from modules.network_base.ping_address import ping_addr
@@ -234,6 +234,15 @@ netcobra -t 127.0.0.1 -p 4444 -ts
 
 // Запуск TLS-соединения (клиент)
 netcobra -t 127.0.0.1 -p 4444 -tc
+
+// Сканер портов
+netcobra -s -t 127.0.0.1 -pc 65536
+
+// Информация о сети
+netcobra -ni
+
+// Информация о домене
+netcobra -ui -t ya.ru
 	'''))
 
 	parser.add_argument('-c', '--command', action='store_true',
@@ -252,6 +261,7 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 	parser.add_argument('-s', '--scan-ports', help='сканирование портов', action='store_true')
 	parser.add_argument('-pc', '--ports-count', help='количество портов для сканирования')
 	parser.add_argument('-ni', '--network-info', help='информация о сети', action='store_true')
+	parser.add_argument('-ui', '--url-info', help='информация об домене', action='store_true')
 	parser.add_argument('--ping', help='ping IP адреса', action='store_true')
 	args = parser.parse_args()
 
@@ -266,11 +276,11 @@ netcobra -t 127.0.0.1 -p 4444 -tc
 				print(f'[{args.target}] Доступен')
 			else:
 				print(f'[{args.target}] Недоступен')
-		elif args.network_info:
+		elif args.url_info:
 			if args.target:
-				check_network(args.target)
-			else:
-				check_network()
+				url_info(args.target)
+		elif args.network_info:	
+			check_network()
 		elif args.scan_ports:
 			print(f'[+] Запуск сканер портов на {args.target}')
 
