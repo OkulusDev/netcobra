@@ -23,7 +23,7 @@ import threading
 # Модули
 from modules.tlsconnection import TLSClient, TLSServer
 from modules.port_scanner import scan_ports
-from modules.netlib import check_network, url_info
+from modules.netlib import url_info
 from modules.dns_bl_scan import *
 from modules.whois_information import *
 from modules.network_base.ping_address import ping_addr

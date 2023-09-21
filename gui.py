@@ -12,6 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>."""
+from tkinter import *
 
-# ToDo: Make GUI with tkinter (customtkinter)
-# ToDo: Сделать GUI с tkinter (customtkinter)
+root = Tk()
+
+root.title('NetCobra')
+root.geometry('500x500')
+root.resizable(False, False)
+
+Label(root, text='Coming soon').pack()
+
+root.mainloop()
