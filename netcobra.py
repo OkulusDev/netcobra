@@ -243,6 +243,8 @@ netcobra -ni
 
 // Информация о домене
 netcobra -ui -t ya.ru
+
+Copyright Okulus Dev (C) 2023
 	'''))
 
 	parser.add_argument('-c', '--command', action='store_true',
